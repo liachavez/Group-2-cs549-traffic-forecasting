@@ -72,6 +72,34 @@ def main() -> None:
     val_pred = predict_per_sensor(models, val["X"])
     print("\nValidation performance:")
     evaluate_predictions(val_pred)
+    
+    import csv
+    import matplotlib.pyplot as plt
+
+    # Score only valid sample/sensor pairs, one horizon at a time.
+    mask = val["valid_mask"]
+    rows = []
+    for h in range(val["Y"].shape[1]):
+        error = (val_pred[:, h, :] - val["Y"][:, h, :])[mask]
+        mae = np.mean(np.abs(error))
+        rmse = np.sqrt(np.mean(error ** 2))
+        rows.append((h + 1, (h + 1) * 5, mae, rmse))
+
+    results = Path(__file__).resolve().parent.parent / "results"
+    results.mkdir(exist_ok=True)
+    with (results / "linear_regression_horizons.csv").open("w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["horizon", "minutes_ahead", "MAE_mph", "RMSE_mph"])
+        writer.writerows(rows)
+
+    minutes = [row[1] for row in rows]
+    fig, ax = plt.subplots(figsize=(7, 4))
+    ax.plot(minutes, [row[2] for row in rows], marker="o")
+    ax.set(xlabel="Minutes ahead", ylabel="Validation MAE (mph)", xticks=minutes)
+    ax.grid(alpha=0.3)
+    fig.tight_layout()
+    fig.savefig(results / "linear_regression_mae.png", dpi=180)
+    plt.close(fig)
 
     test = load_split("test_features")
     test_pred = predict_per_sensor(models, test["X"])
